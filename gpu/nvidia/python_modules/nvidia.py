@@ -28,17 +28,20 @@ from pynvml import *
 from random import randint
 import time
 
+
 descriptors = list()
 
 device = 0
 eventSet = 0
 violation_dur = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
+
 '''Return the descriptor based on the name'''
 def find_descriptor(name):
     for d in descriptors:
         if d['name'] == name:
             return d
+
 
 '''Build descriptor from arguments and append it to the global descriptors list if call_back does not return with error'''
 def build_descriptor(name, call_back, time_max, value_type, units, slope, format, description, groups):
@@ -63,8 +66,11 @@ def build_descriptor(name, call_back, time_max, value_type, units, slope, format
         print "Failed to build descriptor :", name, ":", str(err)
         pass
 
+
 def get_gpu_num():
     return int(nvmlDeviceGetCount())
+
+
 def get_gpu_use_num(name):
     use_num = 0
     for i in range(get_gpu_num()):
@@ -73,11 +79,14 @@ def get_gpu_use_num(name):
             use_num += 1
     return use_num
 
+
 def gpu_num_handler(name):
     return get_gpu_num()
 
+
 def gpu_driver_version_handler(name):
     return nvmlSystemGetDriverVersion()
+
 
 def gpu_get_device_by_name(name):
     d = find_descriptor(name)
@@ -86,8 +95,10 @@ def gpu_get_device_by_name(name):
     gpu_device = nvmlDeviceGetHandleByIndex(gpu_id)
     return gpu_device
 
+
 def gpu_device_handler(name):
     global violation_dur, violation_rate
+
     (gpu, metric) = name.split('_', 1)
     gpu_id = int(gpu.split('gpu')[1])
     gpu_device = gpu_get_device_by_name(name)
@@ -98,8 +109,12 @@ def gpu_device_handler(name):
         return nvmlDeviceGetUUID(gpu_device)
     elif (metric == 'pci_id'):
         return nvmlDeviceGetPciInfo(gpu_device).pciDeviceId
-    elif (metric == 'temp'):
+    elif (metric == 'tempC'):
         return nvmlDeviceGetTemperature(gpu_device, NVML_TEMPERATURE_GPU)
+    elif (metric == 'tempF'):
+        ctemp = nvmlDeviceGetTemperature(gpu_device, NVML_TEMPERATURE_GPU)
+        ftemp = ctemp * 9 / 5 + 32
+        return ftemp
     elif (metric == 'mem_total'):
         return int(nvmlDeviceGetMemoryInfo(gpu_device).total/(1024*1024))
     elif (metric == 'fb_memory'):
@@ -173,10 +188,18 @@ def gpu_device_handler(name):
     elif (metric == 'bar1_max_memory'):
         memory =  nvmlDeviceGetBAR1MemoryInfo(gpu_device)
         return int(memory.bar1Total/1000000)
-    elif (metric == 'shutdown_temp'):
+    elif (metric == 'shutdown_tempC'):
         return nvmlDeviceGetTemperatureThreshold(gpu_device,0)
-    elif (metric == 'slowdown_temp'):
+    elif (metric == 'shutdown_tempF'):
+        ctemp = nvmlDeviceGetTemperatureThreshold(gpu_device,0)
+        ftemp = ctemp * 9 / 5 + 32
+        return ftemp
+    elif (metric == 'slowdown_tempC'):
         return nvmlDeviceGetTemperatureThreshold(gpu_device,1)
+    elif (metric == 'slowdown_tempF'):
+        ctemp = nvmlDeviceGetTemperatureThreshold(gpu_device,1)
+        ftemp = ctemp * 9 / 5 + 32
+        return ftemp
     elif (metric == 'encoder_util'):
         return int(nvmlDeviceGetEncoderUtilization(gpu_device)[0])
     elif (metric == 'decoder_util'):
@@ -201,6 +224,7 @@ def gpu_device_handler(name):
         print "Handler for %s not implemented, please fix in gpu_device_handler()" % metric
         os._exit(1)
 
+
 def metric_init(params):
     global descriptors
 
@@ -224,7 +248,8 @@ def metric_init(params):
         build_descriptor('gpu%s_mem_clock_report' % i, gpu_device_handler, default_time_max, 'uint', 'MHz', 'both', '%u', 'GPU%s Memory Clock' % i, 'gpu')
         build_descriptor('gpu%s_uuid' % i, gpu_device_handler, default_time_max, 'string', '', 'zero', '%s', 'GPU%s UUID' % i, 'gpu')
         build_descriptor('gpu%s_pci_id' % i, gpu_device_handler, default_time_max, 'string', '', 'zero', '%s', 'GPU%s PCI ID' % i, 'gpu')
-        build_descriptor('gpu%s_temp' % i, gpu_device_handler, default_time_max, 'uint', 'C', 'both', '%u', 'Temperature of GPU %s' % i, 'gpu,temp')
+        build_descriptor('gpu%s_tempC' % i, gpu_device_handler, default_time_max, 'uint', 'C', 'both', '%u', 'Temperature of GPU %s in C' % i, 'gpu,temp')
+        build_descriptor('gpu%s_tempF' % i, gpu_device_handler, default_time_max, 'uint', 'F', 'both', '%u', 'Temperature of GPU %s in F' % i, 'gpu,temp')
         build_descriptor('gpu%s_mem_total' % i, gpu_device_handler, default_time_max, 'uint', 'MB', 'zero', '%u', 'GPU%s FB Memory Total' %i, 'gpu')
         build_descriptor('gpu%s_fb_memory' % i, gpu_device_handler, default_time_max, 'uint', 'MB', 'both', '%u', 'GPU%s FB Memory Used' %i, 'gpu')
         build_descriptor('gpu%s_ecc_mode' % i, gpu_device_handler, default_time_max, 'string', '', 'zero', '%s', 'GPU%s ECC Mode' %i, 'gpu')
@@ -248,11 +273,14 @@ def metric_init(params):
         build_descriptor('gpu%s_power_violation_report' % i, gpu_device_handler, default_time_max, 'uint', '', 'both', '%u', 'GPU%s Power Violation Report' % i, 'gpu')
         build_descriptor('gpu%s_bar1_memory' % i, gpu_device_handler, default_time_max, 'uint', 'MB', 'both', '%u', 'GPU%s Bar1 Memory Used' % i, 'gpu')
         build_descriptor('gpu%s_bar1_max_memory' % i, gpu_device_handler, default_time_max, 'uint', 'MB', 'zero', '%u', 'GPU%s Bar1 Memory Total' % i, 'gpu')
-        build_descriptor('gpu%s_shutdown_temp' % i, gpu_device_handler, default_time_max, 'uint', 'C', 'zero', '%u', 'GPU%s Type' % i, 'gpu')
-        build_descriptor('gpu%s_slowdown_temp' % i, gpu_device_handler, default_time_max, 'uint', 'C', 'zero', '%u', 'GPU%s Type' % i, 'gpu')
+        build_descriptor('gpu%s_shutdown_tempC' % i, gpu_device_handler, default_time_max, 'uint', 'C', 'zero', '%u', 'GPU%s Type' % i, 'gpu')
+        build_descriptor('gpu%s_shutdown_tempF' % i, gpu_device_handler, default_time_max, 'uint', 'F', 'zero', '%u', 'GPU%s Type' % i, 'gpu')
+        build_descriptor('gpu%s_slowdown_tempC' % i, gpu_device_handler, default_time_max, 'uint', 'C', 'zero', '%u', 'GPU%s Type' % i, 'gpu')
+        build_descriptor('gpu%s_slowdown_tempF' % i, gpu_device_handler, default_time_max, 'uint', 'F', 'zero', '%u', 'GPU%s Type' % i, 'gpu')
         build_descriptor('gpu%s_encoder_util' % i, gpu_device_handler, default_time_max, 'uint', '%', 'both', '%u', 'GPU%s Type' % i, 'gpu')
         build_descriptor('gpu%s_decoder_util' % i, gpu_device_handler, default_time_max, 'uint', '%', 'both', '%u', 'GPU%s Type' % i, 'gpu')
     return descriptors
+
 
 def metric_cleanup():
     '''Clean up the metric module.'''
@@ -262,7 +290,8 @@ def metric_cleanup():
         print "Error shutting down NVML:", str(err)
         return 1
 
-#This code is for debugging and unit testing
+
+# This code is for debugging and unit testing
 if __name__ == '__main__':
     metric_init({})
     for d in descriptors:
